@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Server.Auth;
 
 public static class CreateUserCommand
@@ -8,9 +10,11 @@ public static class CreateUserCommand
 
     public static async Task<int> RunAsync(WebApplication app, string[] args)
     {
+        var makeAdmin = args.Contains("--admin");
+        args = args.Where(a => a != "--admin").ToArray();
         if (args.Length != 2)
         {
-            Console.Error.WriteLine($"Usage: Server {Name} <username>");
+            Console.Error.WriteLine($"Usage: Server {Name} <username> [--admin]   (the first user is always an admin)");
             return 2;
         }
 
@@ -29,8 +33,10 @@ public static class CreateUserCommand
         var users = scope.ServiceProvider.GetRequiredService<UserService>();
         try
         {
-            var user = await users.CreateAsync(args[1], password, CancellationToken.None);
-            Console.WriteLine($"Created user '{user.Username}'.");
+            var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
+            var role = makeAdmin || !await db.Users.AnyAsync() ? Data.Entities.UserRole.Admin : Data.Entities.UserRole.User;
+            var user = await users.CreateAsync(args[1], password, CancellationToken.None, role);
+            Console.WriteLine($"Created {role.ToString().ToLowerInvariant()} '{user.Username}'.");
             return 0;
         }
         catch (UserValidationException ex)

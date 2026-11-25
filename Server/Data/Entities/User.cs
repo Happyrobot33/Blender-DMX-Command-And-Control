@@ -4,6 +4,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Server.Data.Entities;
 
+public enum UserRole
+{
+    User,
+    Admin,
+}
+
 [Table("users")]
 [Index(nameof(Username), IsUnique = true, Name = "ux_users_username")]
 public class User
@@ -26,6 +32,9 @@ public class User
     [Required]
     [Column("security_stamp", TypeName = "char(32)")]
     public string SecurityStamp { get; set; } = string.Empty;
+
+    [Column("role", TypeName = "varchar(32)")]
+    public UserRole Role { get; set; } = UserRole.User;
 
     [Column("created_at_utc")]
     public DateTime CreatedAtUtc { get; set; }

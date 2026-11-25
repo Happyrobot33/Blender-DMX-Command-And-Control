@@ -10,6 +10,8 @@ public static class AuthConstants
 
     public const string RenderMachinePolicy = "RenderMachine";
 
+    public const string AdminRole = "Admin";
+
     public const string PrincipalTypeClaim = "bdmx:principal_type";
 
     public const string SecurityStampClaim = "bdmx:security_stamp";

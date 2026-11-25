@@ -18,7 +18,7 @@ public partial class UserService(AppDbContext db, IPasswordHasher<User> hasher)
     [GeneratedRegex("^[A-Za-z0-9._-]{3,64}$")]
     private static partial Regex UsernamePattern();
 
-    public async Task<User> CreateAsync(string username, string password, CancellationToken cancellationToken)
+    public async Task<User> CreateAsync(string username, string password, CancellationToken cancellationToken, UserRole role = UserRole.User)
     {
         username = (username ?? string.Empty).Trim();
         if (!UsernamePattern().IsMatch(username))
@@ -32,6 +32,7 @@ public partial class UserService(AppDbContext db, IPasswordHasher<User> hasher)
         {
             Username = username,
             SecurityStamp = NewSecurityStamp(),
+            Role = role,
             CreatedAtUtc = DateTime.UtcNow,
         };
         user.PasswordHash = hasher.HashPassword(user, password);
@@ -91,11 +92,30 @@ public partial class UserService(AppDbContext db, IPasswordHasher<User> hasher)
             throw new UserValidationException("You can't delete your own account.");
         if (await db.Users.CountAsync(cancellationToken) <= 1)
             throw new UserValidationException("You can't delete the last user.");
+        if (await IsLastAdminAsync(userId, cancellationToken))
+            throw new UserValidationException("You can't delete the last admin.");
 
         var deleted = await db.Users.Where(u => u.Id == userId).ExecuteDeleteAsync(cancellationToken);
         if (deleted == 0)
             throw new UserValidationException("User not found.");
     }
+
+    public async Task SetRoleAsync(int userId, UserRole role, CancellationToken cancellationToken)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new UserValidationException("User not found.");
+        if (user.Role == role)
+            return;
+        if (role != UserRole.Admin && await IsLastAdminAsync(userId, cancellationToken))
+            throw new UserValidationException("You can't remove the last admin.");
+
+        user.Role = role;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> IsLastAdminAsync(int userId, CancellationToken cancellationToken) =>
+        await db.Users.AnyAsync(u => u.Id == userId && u.Role == UserRole.Admin, cancellationToken)
+        && await db.Users.CountAsync(u => u.Role == UserRole.Admin, cancellationToken) <= 1;
 
     public static ClaimsPrincipal CreatePrincipal(User user) =>
         new(new ClaimsIdentity(
@@ -104,6 +124,7 @@ public partial class UserService(AppDbContext db, IPasswordHasher<User> hasher)
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(AuthConstants.PrincipalTypeClaim, AuthConstants.UserPrincipalType),
             new Claim(AuthConstants.SecurityStampClaim, user.SecurityStamp),
+            new Claim(ClaimTypes.Role, user.Role.ToString()),
         ], AuthConstants.UserScheme));
 
     private static void ValidatePassword(string password)

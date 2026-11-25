@@ -14,18 +14,26 @@ public static class UserSessionValidator
         var idClaim = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         var stampClaim = principal?.FindFirstValue(AuthConstants.SecurityStampClaim);
 
-        var valid = false;
+        Data.Entities.User? user = null;
         if (int.TryParse(idClaim, out var userId) && stampClaim is not null)
         {
             var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
-            valid = await db.Users.AnyAsync(u => u.Id == userId && u.SecurityStamp == stampClaim,
-                context.HttpContext.RequestAborted);
+            user = await db.Users.AsNoTracking()
+                .SingleOrDefaultAsync(u => u.Id == userId && u.SecurityStamp == stampClaim, context.HttpContext.RequestAborted);
         }
 
-        if (!valid)
+        if (user is null)
         {
             context.RejectPrincipal();
             await context.HttpContext.SignOutAsync(AuthConstants.UserScheme);
+            return;
+        }
+
+        // Role changes take effect on the next request, without signing the user out.
+        if (principal!.FindFirstValue(ClaimTypes.Role) != user.Role.ToString())
+        {
+            context.ReplacePrincipal(UserService.CreatePrincipal(user));
+            context.ShouldRenew = true;
         }
     }
 }

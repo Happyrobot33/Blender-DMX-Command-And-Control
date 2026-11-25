@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Auth;
 using Server.Data;
+using Server.Data.Entities;
 
 namespace Server.Controllers;
 
@@ -12,10 +13,19 @@ public class UsersController(AppDbContext db, UserService users) : Controller
 {
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+    private bool IsAdmin => User.IsInRole(AuthConstants.AdminRole);
+
+    private IActionResult AdminOnly(string action)
+    {
+        TempData["Error"] = $"Only admins can {action}.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         ViewData["CurrentUserId"] = CurrentUserId;
+        ViewData["IsAdmin"] = IsAdmin;
         return View(await db.Users.AsNoTracking().OrderBy(u => u.Username).ToListAsync(cancellationToken));
     }
 
@@ -44,6 +54,8 @@ public class UsersController(AppDbContext db, UserService users) : Controller
     [HttpGet("{id:int}/password")]
     public async Task<IActionResult> ChangePassword(int id, CancellationToken cancellationToken)
     {
+        if (id != CurrentUserId && !IsAdmin)
+            return AdminOnly("change other users' passwords");
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id, cancellationToken);
         return user is null ? NotFound() : View(user);
     }
@@ -51,6 +63,8 @@ public class UsersController(AppDbContext db, UserService users) : Controller
     [HttpPost("{id:int}/password")]
     public async Task<IActionResult> ChangePassword(int id, string password, string confirmPassword, CancellationToken cancellationToken)
     {
+        if (id != CurrentUserId && !IsAdmin)
+            return AdminOnly("change other users' passwords");
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id, cancellationToken);
         if (user is null)
             return NotFound();
@@ -82,6 +96,8 @@ public class UsersController(AppDbContext db, UserService users) : Controller
     [HttpPost("{id:int}/delete")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
+        if (!IsAdmin)
+            return AdminOnly("delete users");
         var username = await db.Users.Where(u => u.Id == id).Select(u => u.Username).SingleOrDefaultAsync(cancellationToken);
         if (username is null)
             return NotFound();
@@ -90,6 +106,27 @@ public class UsersController(AppDbContext db, UserService users) : Controller
         {
             await users.DeleteAsync(id, CurrentUserId, cancellationToken);
             TempData["Message"] = $"Deleted user \"{username}\".";
+        }
+        catch (UserValidationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("{id:int}/role")]
+    public async Task<IActionResult> SetRole(int id, UserRole role, CancellationToken cancellationToken)
+    {
+        if (!IsAdmin)
+            return AdminOnly("change roles");
+        var username = await db.Users.Where(u => u.Id == id).Select(u => u.Username).SingleOrDefaultAsync(cancellationToken);
+        if (username is null)
+            return NotFound();
+
+        try
+        {
+            await users.SetRoleAsync(id, role, cancellationToken);
+            TempData["Message"] = role == UserRole.Admin ? $"\"{username}\" is now an admin." : $"\"{username}\" is no longer an admin.";
         }
         catch (UserValidationException ex)
         {

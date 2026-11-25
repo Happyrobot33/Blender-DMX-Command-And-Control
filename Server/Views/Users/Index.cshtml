@@ -2,6 +2,8 @@
 @{
     ViewData["Title"] = "Users";
     var currentUserId = (int)ViewData["CurrentUserId"]!;
+    var isAdmin = (bool)ViewData["IsAdmin"]!;
+    var adminCount = Model.Count(u => u.Role == Server.Data.Entities.UserRole.Admin);
 }
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Users</h1>
@@ -13,23 +15,37 @@
 <div class="table-responsive">
     <table class="table align-middle">
         <thead>
-            <tr><th>Username</th><th>Created</th><th>Last sign-in</th><th></th></tr>
+            <tr><th>Username</th><th>Role</th><th>Created</th><th>Last sign-in</th><th></th></tr>
         </thead>
         <tbody>
             @foreach (var user in Model)
             {
                 var isMe = user.Id == currentUserId;
+                var userIsAdmin = user.Role == Server.Data.Entities.UserRole.Admin;
+                var lastAdmin = userIsAdmin && adminCount <= 1;
                 <tr>
                     <td>@user.Username @if (isMe) { <span class="badge text-bg-secondary">you</span> }</td>
+                    <td><span class="badge @(userIsAdmin ? "text-bg-primary" : "text-bg-light border")">@user.Role</span></td>
                     <td><local-time value="user.CreatedAtUtc" /></td>
                     <td><local-time value="user.LastLoginAtUtc" /></td>
                     <td class="text-end text-nowrap">
-                        <a class="btn btn-sm btn-outline-secondary" asp-action="ChangePassword" asp-route-id="@user.Id">Change password</a>
-                        <form method="post" asp-action="Delete" asp-route-id="@user.Id" class="d-inline"
-                              data-confirm="Delete user &quot;@user.Username&quot;? They will be signed out immediately.">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" disabled="@(isMe || Model.Count <= 1)"
-                                    title="@(isMe ? "You can't delete your own account" : Model.Count <= 1 ? "You can't delete the last user" : "Delete this user")">Delete</button>
-                        </form>
+                        @if (isMe || isAdmin)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="ChangePassword" asp-route-id="@user.Id">Change password</a>
+                        }
+                        @if (isAdmin)
+                        {
+                            <form method="post" asp-action="SetRole" asp-route-id="@user.Id" class="d-inline">
+                                <input type="hidden" name="role" value="@(userIsAdmin ? "User" : "Admin")" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" disabled="@lastAdmin"
+                                        title="@(lastAdmin ? "You can't remove the last admin" : userIsAdmin ? "Remove admin rights" : "Give admin rights")">@(userIsAdmin ? "Make user" : "Make admin")</button>
+                            </form>
+                            <form method="post" asp-action="Delete" asp-route-id="@user.Id" class="d-inline"
+                                  data-confirm="Delete user &quot;@user.Username&quot;? They will be signed out immediately.">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" disabled="@(isMe || lastAdmin)"
+                                        title="@(isMe ? "You can't delete your own account" : lastAdmin ? "You can't delete the last admin" : "Delete this user")">Delete</button>
+                            </form>
+                        }
                     </td>
                 </tr>
             }
