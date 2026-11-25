@@ -6,15 +6,7 @@ public static class JobRollup
 {
     public static void Apply(Job job, DateTime now)
     {
-        var failed = job.Tasks.Where(t => t.Status == JobTaskStatus.Failed).OrderBy(t => t.TaskIndex).FirstOrDefault();
-        if (failed is not null)
-        {
-            job.Status = JobStatus.Failed;
-            job.ErrorMessage = Truncate($"Task {failed.TaskIndex + 1} (frames {failed.FrameStart}–{failed.FrameEnd}) failed: {failed.ErrorMessage}", 2000);
-            job.RenderedAtUtc = null;
-            return;
-        }
-
+        // Failed tasks are requeued (see TaskProgressService), so they never fail the job.
         job.ErrorMessage = null;
         if (job.Tasks.All(t => t.Status == JobTaskStatus.Completed))
         {
@@ -28,7 +20,4 @@ public static class JobRollup
             ? JobStatus.Rendering
             : JobStatus.Ready;
     }
-
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : value[..maxLength];
 }

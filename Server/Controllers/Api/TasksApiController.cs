@@ -117,6 +117,7 @@ public class TasksApiController(
                 task.FramesCompleted,
                 progressPercent = Math.Round(task.ProgressPercent, 2),
                 error = task.ErrorMessage,
+                failCount = task.FailCount,
             },
             job = new
             {

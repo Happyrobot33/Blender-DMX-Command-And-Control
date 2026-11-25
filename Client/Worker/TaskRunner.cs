@@ -8,7 +8,8 @@ public class TaskRunner(ServerApi api, IOptions<ClientOptions> options, ILogger<
 {
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(2);
 
-    public async Task RunAsync(ClaimResponse claim, CachedJob job, CancellationToken cancellationToken)
+    // Returns false if the task failed (it was reported to the server, which puts it back in the queue).
+    public async Task<bool> RunAsync(ClaimResponse claim, CachedJob job, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var task = claim.Task;
@@ -73,7 +74,9 @@ public class TaskRunner(ServerApi api, IOptions<ClientOptions> options, ILogger<
             {
                 logger.LogError("Task {TaskId} failed: {Message}", task.Id, failure);
                 await api.ReportProgressAsync(task.Id, CountFrames(framePaths), "Failed", failure, cancellationToken);
+                return false;
             }
+            return true;
         }
         finally
         {

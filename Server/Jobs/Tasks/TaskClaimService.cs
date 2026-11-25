@@ -24,7 +24,8 @@ public class TaskClaimService(AppDbContext db, ILogger<TaskClaimService> logger)
         {
             var candidates = await db.JobTasks.AsNoTracking()
                 .Where(t => t.Status == JobTaskStatus.Pending && (t.Job.Status == JobStatus.Ready || t.Job.Status == JobStatus.Rendering))
-                .OrderBy(t => t.Job.CreatedAtUtc).ThenBy(t => t.TaskIndex)
+                // Oldest job first; within a job, tasks that have failed before go to the back of the queue.
+                .OrderBy(t => t.Job.CreatedAtUtc).ThenBy(t => t.FailCount).ThenBy(t => t.TaskIndex)
                 .Select(t => new { t.Id, t.JobId })
                 .Take(CandidateBatchSize)
                 .ToListAsync(cancellationToken);

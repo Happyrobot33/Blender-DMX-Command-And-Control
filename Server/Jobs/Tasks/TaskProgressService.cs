@@ -63,11 +63,6 @@ public class TaskProgressService(AppDbContext db, VideoEncodingQueue videoQueue,
         if (task.Status == JobTaskStatus.Completed)
             throw new TaskProgressException("Task is already completed.", TaskProgressError.Conflict);
 
-        // Retrying a Failed task makes it active again; a machine may only hold one active task.
-        if (task.Status == JobTaskStatus.Failed && update.Status != JobTaskStatus.Failed &&
-            await db.JobTasks.AnyAsync(t => t.Id != taskId && t.RenderMachineId == renderMachineId &&
-                                            (t.Status == JobTaskStatus.Assigned || t.Status == JobTaskStatus.Running), cancellationToken))
-            throw new TaskProgressException("This machine already has an active task; finish it before retrying this one.", TaskProgressError.Conflict);
         Apply(task, update, DateTime.UtcNow);
         JobRollup.Apply(job, DateTime.UtcNow);
 
@@ -88,8 +83,12 @@ public class TaskProgressService(AppDbContext db, VideoEncodingQueue videoQueue,
         if (queueVideo)
             videoQueue.Enqueue(job.Id);
 
-        logger.LogInformation("Task {TaskId} (job {JobId} #{TaskIndex}): {Done}/{Total} frames, {TaskStatus}; job {JobStatus} {Percent:0.#}%",
-            task.Id, job.Id, task.TaskIndex, task.FramesCompleted, task.FrameCount, task.Status, job.Status, job.ProgressPercent);
+        if (update.Status == JobTaskStatus.Failed)
+            logger.LogWarning("Task {TaskId} (job {JobId} #{TaskIndex}) failed on machine {MachineId} (failure {FailCount}): {Error}; requeued",
+                task.Id, job.Id, task.TaskIndex, renderMachineId, task.FailCount, task.ErrorMessage);
+        else
+            logger.LogInformation("Task {TaskId} (job {JobId} #{TaskIndex}): {Done}/{Total} frames, {TaskStatus}; job {JobStatus} {Percent:0.#}%",
+                task.Id, job.Id, task.TaskIndex, task.FramesCompleted, task.FrameCount, task.Status, job.Status, job.ProgressPercent);
         return job;
     }
 
@@ -110,9 +109,25 @@ public class TaskProgressService(AppDbContext db, VideoEncodingQueue videoQueue,
                 throw new TaskProgressException("error is required when status is Failed.");
         }
 
+        if (status == JobTaskStatus.Failed)
+        {
+            // Don't fail the task (or the job): count the failure, keep the reason, and put the task
+            // back in the queue so it can be claimed again (by any machine).
+            task.FailCount++;
+            task.LastFailedAtUtc = now;
+            task.ErrorMessage = Truncate(update.Error!.Trim(), 2000);
+            task.Status = JobTaskStatus.Pending;
+            task.RenderMachineId = null;
+            task.FramesCompleted = 0;
+            task.ClaimedAtUtc = null;
+            task.StartedAtUtc = null;
+            task.CompletedAtUtc = null;
+            task.UpdatedAtUtc = now;
+            return;
+        }
+
         task.FramesCompleted = update.FramesCompleted;
         task.Status = status;
-        task.ErrorMessage = status == JobTaskStatus.Failed ? Truncate(update.Error!.Trim(), 2000) : null;
         task.StartedAtUtc ??= now;
         task.CompletedAtUtc = status == JobTaskStatus.Completed ? task.CompletedAtUtc ?? now : null;
         task.UpdatedAtUtc = now;

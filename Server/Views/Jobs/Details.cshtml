@@ -76,6 +76,7 @@
             <div class="form-text">
                 @Model.FramesCompleted.ToString("N0") / @Model.TotalFrames.ToString("N0") frames -
                 @Model.Tasks.Count(t => t.Status == Server.Data.Entities.JobTaskStatus.Completed) / @Model.Tasks.Count tasks completed
+                @if (Model.Tasks.Sum(t => t.FailCount) is int failures and > 0) { <text> - @failures failed @(failures == 1 ? "attempt" : "attempts") (retried)</text> }
                 @if (Model.RenderTimeRemaining is TimeSpan jobRemaining) { <text> - @Server.Jobs.RemainingTime.Describe(jobRemaining)</text> }
             </div>
         </dd>
@@ -171,10 +172,13 @@
                         <td class="text-end"><code>@task.Id</code></td>
                         <td>@task.FrameStart–@task.FrameEnd</td>
                         <td class="text-end">@task.FramesCompleted.ToString("N0")/@task.FrameCount.ToString("N0")</td>
-                        <td><partial name="_ProgressBar" model="task.ProgressPercent" view-data='new ViewDataDictionary(ViewData) { ["Failed"] = task.Status == Server.Data.Entities.JobTaskStatus.Failed }' /></td>
+                        <td><partial name="_ProgressBar" model="task.ProgressPercent" /></td>
                         <td>
                             @task.Status
-                            @if (task.ErrorMessage is not null) { <div class="small text-danger">@task.ErrorMessage</div> }
+                            @if (task.FailCount > 0)
+                            {
+                                <div class="small text-danger">Failed @task.FailCount @(task.FailCount == 1 ? "time" : "times")@(task.ErrorMessage is null ? "" : $", last: {task.ErrorMessage}")</div>
+                            }
                         </td>
                         <td>@(task.TimeRemaining is TimeSpan taskRemaining ? Server.Jobs.RemainingTime.Describe(taskRemaining) : "-")</td>
                         <td>@(task.RenderMachine?.Name ?? "-")</td>

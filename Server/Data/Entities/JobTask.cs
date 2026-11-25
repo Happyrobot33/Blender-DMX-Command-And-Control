@@ -58,6 +58,13 @@ public class JobTask
     [Column("created_at_utc")]
     public DateTime CreatedAtUtc { get; set; }
 
+    // How often this task has been reported as failed; each failure puts it back in the queue.
+    [Column("fail_count")]
+    public int FailCount { get; set; }
+
+    [Column("last_failed_at_utc")]
+    public DateTime? LastFailedAtUtc { get; set; }
+
     [Column("claimed_at_utc")]
     public DateTime? ClaimedAtUtc { get; set; }
 

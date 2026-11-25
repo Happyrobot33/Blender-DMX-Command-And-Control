@@ -59,8 +59,14 @@ public class RenderWorker(
 
                 idleLogged = false;
                 var job = await cache.EnsureAsync(claim.Job, stoppingToken);
-                await runner.RunAsync(claim, job, stoppingToken);
-                // Ask for the next task straight away.
+                if (!await runner.RunAsync(claim, job, stoppingToken))
+                {
+                    // The failed task is back in the queue; pause before claiming so a machine with a
+                    // persistent problem doesn't spin on it.
+                    logger.LogInformation("Waiting {Interval}s before taking another task", settings.PollIntervalSeconds);
+                    await Task.Delay(pollInterval, stoppingToken);
+                }
+                // Otherwise ask for the next task straight away.
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
