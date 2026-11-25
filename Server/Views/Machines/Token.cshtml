@@ -1,0 +1,36 @@
+@model Server.Data.Entities.RenderMachine
+@{
+    ViewData["Title"] = $"API token: {Model.Name}";
+    var token = (string)ViewData["Token"]!;
+    var isNew = (bool)ViewData["IsNew"]!;
+}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Render machines</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@Model.Name</li>
+    </ol>
+</nav>
+<h1 class="h3">@(isNew ? "Render machine created" : "New API token issued")</h1>
+
+<div class="alert alert-warning">
+    Copy this token now and configure it on <strong>@Model.Name</strong>. It won't be shown again. 
+    if it's lost, issue a new one.@(isNew ? "" : " The previous token will no longer work.")
+</div>
+
+<div class="input-group mb-3">
+    <input id="api-token" class="form-control font-monospace" value="@token" readonly aria-label="API token" />
+    <button class="btn btn-outline-secondary" type="button" id="copy-token">Copy</button>
+</div>
+
+<a class="btn btn-primary" asp-action="Index">Done</a>
+
+@section Scripts {
+    <script>
+        document.getElementById('copy-token').addEventListener('click', async (e) => {
+            const input = document.getElementById('api-token');
+            input.select();
+            try { await navigator.clipboard.writeText(input.value); e.target.textContent = 'Copied'; }
+            catch { document.execCommand('copy'); e.target.textContent = 'Copied'; }
+        });
+    </script>
+}

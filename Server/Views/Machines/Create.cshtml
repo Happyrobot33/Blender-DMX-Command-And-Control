@@ -1,0 +1,22 @@
+@{
+    ViewData["Title"] = "Add render machine";
+}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Render machines</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Add</li>
+    </ol>
+</nav>
+<h1 class="h3">Add render machine</h1>
+@if (ViewData["Error"] is string error)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
+<form method="post" asp-action="Create" class="col-md-6">
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input id="name" name="name" class="form-control" value="@ViewData["Name"]" required maxlength="100" autocomplete="off" />
+        <div class="form-text">For example the machine's hostname.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Create and issue token</button>
+</form>

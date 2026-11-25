@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Upload Blender project";
+    var maxUploadBytes = (long)ViewData["MaxUploadBytes"]!;
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Jobs</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Upload</li>
+    </ol>
+</nav>
+
+<h1 class="h3">Upload Blender project</h1>
+<p class="text-muted">
+    Pick the project folder (the one containing your <code>.blend</code> file and its textures, caches, etc.).
+    Maximum upload size: @(maxUploadBytes.Bytes().Humanize("0.##")).
+</p>
+
+<form id="upload-form" method="post" asp-action="Upload" data-max-bytes="@maxUploadBytes">
+    <div class="mb-3">
+        <label for="job-name" class="form-label">Job name <span class="text-muted">(optional, defaults to the folder name)</span></label>
+        <input id="job-name" type="text" class="form-control" maxlength="255" autocomplete="off" />
+    </div>
+    <div class="mb-3">
+        <label for="task-count" class="form-label">Sub tasks</label>
+        <input id="task-count" type="number" class="form-control" style="max-width: 10rem"
+               min="1" max="@Server.Jobs.Analysis.JobTaskPlanner.MaxSubTaskCount" step="1"
+               value="@Server.Jobs.Analysis.JobTaskPlanner.DefaultSubTaskCount" required />
+        <div class="form-text">How many tasks the frame range is split into; each task is rendered by one machine. A job with fewer frames gets one task per frame.</div>
+    </div>
+    <div class="mb-3">
+        <label for="project-folder" class="form-label">Project folder</label>
+        <input id="project-folder" type="file" class="form-control" webkitdirectory directory multiple required />
+        <div id="selection-summary" class="form-text"></div>
+    </div>
+    <div class="mb-3">
+        <label for="hnode-config" class="form-label">HNode config</label>
+        <input id="hnode-config" type="file" class="form-control" accept=".shwcfg" required />
+        <div class="form-text">The HNode configuration for this job, as a <code>.shwcfg</code> file.</div>
+    </div>
+    <div id="blend-wrap" class="mb-3 d-none">
+        <label for="main-blend-file" class="form-label">Main .blend file</label>
+        <select id="main-blend-file" class="form-select" required></select>
+        <div id="blend-help" class="form-text"></div>
+    </div>
+
+    <div id="progress-wrap" class="mb-3 d-none">
+        <div class="progress" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100">
+            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+        </div>
+    </div>
+    <div id="upload-error" class="alert alert-danger d-none" role="alert"></div>
+
+    <button id="upload-button" type="submit" class="btn btn-primary">Upload</button>
+</form>
+
+@section Scripts {
+    <script type="module" src="~/js/job-upload.js" asp-append-version="true"></script>
+}

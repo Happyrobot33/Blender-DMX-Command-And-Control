@@ -1,0 +1,201 @@
+@model Server.Data.Entities.Job
+@{
+    ViewData["Title"] = Model.Name;
+    var sourceFiles = (IReadOnlyList<Server.Jobs.JobSourceFile>)ViewData["SourceFiles"]!;
+    var inProgress = Model.Status is Server.Data.Entities.JobStatus.Uploading or Server.Data.Entities.JobStatus.Analyzing;
+    var frameCount = Model.FrameStart is int fs && Model.FrameEnd is int fe
+        ? new Server.Jobs.Analysis.FrameRange(Model.SceneName ?? "", fs, fe).FrameCount
+        : (int?)null;
+}
+@if (inProgress || Model.Status == Server.Data.Entities.JobStatus.Rendering
+     || Model.VideoStatus is Server.Data.Entities.VideoStatus.Pending or Server.Data.Entities.VideoStatus.Encoding or Server.Data.Entities.VideoStatus.Packaging)
+{
+    @* Still uploading/scanning or rendering; re-check every few seconds. *@
+    <script>setTimeout(() => location.reload(), 5000);</script>
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Jobs</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@Model.Name</li>
+    </ol>
+</nav>
+
+<partial name="_FlashMessages" />
+
+<div class="d-flex justify-content-between align-items-start">
+    <h1 class="h3">@Model.Name <partial name="_JobStatusBadge" model="Model.Status" /></h1>
+    <partial name="_DeleteJobForm" model="Model" />
+</div>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<dl class="row">
+    <dt class="col-sm-3">Job ID</dt>
+    <dd class="col-sm-9"><code>@Model.Id</code></dd>
+    <dt class="col-sm-3">Source folder</dt>
+    <dd class="col-sm-9">@(Model.SourceFolderName ?? "-")</dd>
+    <dt class="col-sm-3">HNode config</dt>
+    <dd class="col-sm-9">@if (Model.ConfigFileName is null) { <text>-</text> } else { <code>@Model.ConfigFileName</code> }</dd>
+    <dt class="col-sm-3">Main .blend file</dt>
+    <dd class="col-sm-9"><code>@Model.MainBlendFile</code></dd>
+    <dt class="col-sm-3">Stored at</dt>
+    <dd class="col-sm-9"><code>@ViewData["SourceDirectory"]</code></dd>
+    <dt class="col-sm-3">Files</dt>
+    <dd class="col-sm-9">@Model.FileCount.ToString("N0") (@(Model.TotalBytes.Bytes().Humanize("0.##")))</dd>
+    <dt class="col-sm-3">Scene</dt>
+    <dd class="col-sm-9">@(Model.SceneName ?? (inProgress ? "Analyzing…" : "-"))</dd>
+    <dt class="col-sm-3">Frame range</dt>
+    <dd class="col-sm-9">
+        @if (frameCount is not null)
+        {
+            @($"{Model.FrameStart}–{Model.FrameEnd}")
+            @($" - {frameCount:N0} frames")
+        }
+        else
+        {
+            @(inProgress ? "Analyzing…" : "-")
+        }
+    </dd>
+    @if (Model.Tasks.Count > 0)
+    {
+        <dt class="col-sm-3">Progress</dt>
+        <dd class="col-sm-9">
+            <partial name="_ProgressBar" model="Model.ProgressPercent" view-data='new ViewDataDictionary(ViewData) { ["Failed"] = Model.Status == Server.Data.Entities.JobStatus.Failed }' />
+            <div class="form-text">
+                @Model.FramesCompleted.ToString("N0") / @Model.TotalFrames.ToString("N0") frames -
+                @Model.Tasks.Count(t => t.Status == Server.Data.Entities.JobTaskStatus.Completed) / @Model.Tasks.Count tasks completed
+                @if (Model.RenderTimeRemaining is TimeSpan jobRemaining) { <text> - @Server.Jobs.RemainingTime.Describe(jobRemaining)</text> }
+            </div>
+        </dd>
+    }
+    <dt class="col-sm-3">Frame rate</dt>
+    <dd class="col-sm-9">@(Model.FrameRateDisplay is string fps ? $"{fps} fps" : "-")</dd>
+    <dt class="col-sm-3">Result frames</dt>
+    <dd class="col-sm-9">
+        @(((int)ViewData["ResultFrameCount"]!).ToString("N0"))@(Model.Tasks.Count > 0 ? $" / {Model.TotalFrames:N0}" : "")
+        <div class="form-text"><code>@ViewData["ResultFramesDirectory"]</code></div>
+        @if (Model.Status == Server.Data.Entities.JobStatus.Completed)
+        {
+            <a class="btn btn-sm btn-success mt-1" asp-action="DownloadFrames" asp-route-id="@Model.Id">Download frames (.zip@(ViewData["FramesZipBytes"] is long zipBytes ? $", {zipBytes.Bytes().Humanize("0.##")}" : ""))</a>
+        }
+    </dd>
+    <dt class="col-sm-3">Created</dt>
+    <dd class="col-sm-9"><local-time value="Model.CreatedAtUtc" seconds="true" /></dd>
+    <dt class="col-sm-3">Uploaded</dt>
+    <dd class="col-sm-9"><local-time value="Model.CompletedAtUtc" seconds="true" /></dd>
+    <dt class="col-sm-3">Rendered</dt>
+    <dd class="col-sm-9"><local-time value="Model.RenderedAtUtc" seconds="true" /></dd>
+</dl>
+
+@if (Model.Status == Server.Data.Entities.JobStatus.Completed)
+{
+    var video = Model.VideoStatus;
+    <h2 class="h5 mt-4">Video</h2>
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <div>
+                    <strong>Lossless video</strong>
+                    <span class="badge @(video switch {
+                        Server.Data.Entities.VideoStatus.Ready => "text-bg-success",
+                        Server.Data.Entities.VideoStatus.Failed => "text-bg-danger",
+                        Server.Data.Entities.VideoStatus.Encoding or Server.Data.Entities.VideoStatus.Packaging => "text-bg-primary",
+                        Server.Data.Entities.VideoStatus.Pending => "text-bg-info",
+                        _ => "text-bg-secondary" })">@(video == Server.Data.Entities.VideoStatus.None ? "Not generated" : video.ToString())</span>
+                    @if (Model.VideoFileName is not null && video == Server.Data.Entities.VideoStatus.Ready)
+                    {
+                        <code class="ms-2">@Model.VideoFileName</code>
+                    }
+                </div>
+                <div class="d-flex gap-2">
+                    @if (video == Server.Data.Entities.VideoStatus.Ready && ViewData["VideoBytes"] is long videoBytes)
+                    {
+                        <a class="btn btn-success" asp-action="DownloadVideo" asp-route-id="@Model.Id">Download video (@videoBytes.Bytes().Humanize("0.##"))</a>
+                    }
+                    @if (video is Server.Data.Entities.VideoStatus.None or Server.Data.Entities.VideoStatus.Failed or Server.Data.Entities.VideoStatus.Ready)
+                    {
+                        <form method="post" asp-action="GenerateVideo" asp-route-id="@Model.Id">
+                            <button type="submit" class="btn btn-outline-secondary">@(video switch {
+                                Server.Data.Entities.VideoStatus.None => "Generate video",
+                                Server.Data.Entities.VideoStatus.Failed => "Retry video",
+                                _ => "Regenerate video" })</button>
+                        </form>
+                    }
+                </div>
+            </div>
+            @if (video is Server.Data.Entities.VideoStatus.Pending or Server.Data.Entities.VideoStatus.Encoding or Server.Data.Entities.VideoStatus.Packaging or Server.Data.Entities.VideoStatus.Ready)
+            {
+                <partial name="_ProgressBar" model="Model.VideoProgressPercent" />
+                <div class="form-text">
+                    @(video switch {
+                        Server.Data.Entities.VideoStatus.Pending => "Waiting to start…",
+                        Server.Data.Entities.VideoStatus.Packaging => $"{Model.VideoFrameCount:N0} frames encoded - building the frames zip…",
+                        _ => $"{Model.VideoFramesEncoded:N0} / {Model.VideoFrameCount:N0} frames encoded" })
+                    @if (Model.VideoTimeRemaining is TimeSpan videoRemaining) { <text> - @Server.Jobs.RemainingTime.Describe(videoRemaining)</text> }
+                    @if (Model.FrameRateDisplay is string rate) { <text> - FFV1 lossless at @rate fps</text> }
+                </div>
+            }
+            @if (video == Server.Data.Entities.VideoStatus.Failed && Model.VideoError is not null)
+            {
+                <div class="alert alert-danger mt-2 mb-0">@Model.VideoError</div>
+            }
+        </div>
+    </div>
+}
+
+@if (Model.Tasks.Count > 0)
+{
+    <h2 class="h5 mt-4">Sub tasks <small class="text-muted">(@Model.Tasks.Count)</small></h2>
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead>
+                <tr><th class="text-end">#</th><th class="text-end">Task ID</th><th>Frames</th><th class="text-end">Done</th><th style="width: 30%">Progress</th><th>Status</th><th>Remaining</th><th>Machine</th><th>Updated</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var task in Model.Tasks)
+                {
+                    <tr>
+                        <td class="text-end">@(task.TaskIndex + 1)</td>
+                        <td class="text-end"><code>@task.Id</code></td>
+                        <td>@task.FrameStart–@task.FrameEnd</td>
+                        <td class="text-end">@task.FramesCompleted.ToString("N0")/@task.FrameCount.ToString("N0")</td>
+                        <td><partial name="_ProgressBar" model="task.ProgressPercent" view-data='new ViewDataDictionary(ViewData) { ["Failed"] = task.Status == Server.Data.Entities.JobTaskStatus.Failed }' /></td>
+                        <td>
+                            @task.Status
+                            @if (task.ErrorMessage is not null) { <div class="small text-danger">@task.ErrorMessage</div> }
+                        </td>
+                        <td>@(task.TimeRemaining is TimeSpan taskRemaining ? Server.Jobs.RemainingTime.Describe(taskRemaining) : "-")</td>
+                        <td>@(task.RenderMachine?.Name ?? "-")</td>
+                        <td><local-time value="task.UpdatedAtUtc" seconds="true" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (sourceFiles.Count > 0)
+{
+    <h2 class="h5 mt-4">Source files</h2>
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Path</th><th class="text-end">Size</th><th>Modified</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var file in sourceFiles)
+                {
+                    <tr>
+                        <td><code>@file.RelativePath</code></td>
+                        <td class="text-end">@(file.SizeBytes.Bytes().Humanize("0.##"))</td>
+                        <td><local-time value="file.LastModifiedUtc" seconds="true" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

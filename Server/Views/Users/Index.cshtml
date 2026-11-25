@@ -1,0 +1,38 @@
+@model IReadOnlyList<Server.Data.Entities.User>
+@{
+    ViewData["Title"] = "Users";
+    var currentUserId = (int)ViewData["CurrentUserId"]!;
+}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Users</h1>
+    <a class="btn btn-primary" asp-action="Create">Add user</a>
+</div>
+
+<partial name="_FlashMessages" />
+
+<div class="table-responsive">
+    <table class="table align-middle">
+        <thead>
+            <tr><th>Username</th><th>Created</th><th>Last sign-in</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model)
+            {
+                var isMe = user.Id == currentUserId;
+                <tr>
+                    <td>@user.Username @if (isMe) { <span class="badge text-bg-secondary">you</span> }</td>
+                    <td><local-time value="user.CreatedAtUtc" /></td>
+                    <td><local-time value="user.LastLoginAtUtc" /></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="ChangePassword" asp-route-id="@user.Id">Change password</a>
+                        <form method="post" asp-action="Delete" asp-route-id="@user.Id" class="d-inline"
+                              data-confirm="Delete user &quot;@user.Username&quot;? They will be signed out immediately.">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" disabled="@(isMe || Model.Count <= 1)"
+                                    title="@(isMe ? "You can't delete your own account" : Model.Count <= 1 ? "You can't delete the last user" : "Delete this user")">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

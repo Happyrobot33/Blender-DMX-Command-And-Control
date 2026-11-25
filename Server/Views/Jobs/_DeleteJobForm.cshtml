@@ -1,0 +1,12 @@
+@model Server.Data.Entities.Job
+@{
+    var small = ViewData["Small"] is true;
+}
+<form method="post" asp-controller="Jobs" asp-action="Delete" asp-route-id="@Model.Id" class="d-inline"
+      data-confirm="Delete job &quot;@Model.Name&quot; and all of its files? This can't be undone.">
+    <button type="submit" class="btn btn-outline-danger @(small ? "btn-sm" : "")"
+            disabled="@Model.IsBusy"
+            title="@(Model.IsBusy ? "Can't delete while uploading, analyzing or encoding the video" : "Delete this job and its files")">
+        Delete
+    </button>
+</form>

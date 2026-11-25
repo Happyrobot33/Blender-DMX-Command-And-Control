@@ -1,0 +1,63 @@
+@model IReadOnlyList<Server.Data.Entities.RenderMachine>
+@{
+    ViewData["Title"] = "Render machines";
+}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Render machines</h1>
+    <a class="btn btn-primary" asp-action="Create">Add render machine</a>
+</div>
+
+<partial name="_FlashMessages" />
+
+@if (Model.Count == 0)
+{
+    <p class="text-muted">No render machines yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr><th>Name</th><th>Status</th><th>Token</th><th>Token issued</th><th>Last seen</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var machine in Model)
+                {
+                    <tr>
+                        <td>@machine.Name</td>
+                        <td>
+                            @if (machine.IsEnabled) { <span class="badge text-bg-success">Enabled</span> }
+                            else { <span class="badge text-bg-secondary">Disabled</span> }
+                        </td>
+                        <td><code>@machine.TokenPrefix…</code></td>
+                        <td><local-time value="machine.TokenIssuedAtUtc" /></td>
+                        <td><local-time value="machine.LastSeenAtUtc" empty="never" /></td>
+                        <td class="text-end text-nowrap">
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="Rename" asp-route-id="@machine.Id">Rename</a>
+                            <form method="post" asp-action="RegenerateToken" asp-route-id="@machine.Id" class="d-inline"
+                                  data-confirm="Issue a new token for &quot;@machine.Name&quot;?">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">New token</button>
+                            </form>
+                            @if (machine.IsEnabled)
+                            {
+                                <form method="post" asp-action="Disable" asp-route-id="@machine.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning">Disable</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <form method="post" asp-action="Enable" asp-route-id="@machine.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-success">Enable</button>
+                                </form>
+                            }
+                            <form method="post" asp-action="Delete" asp-route-id="@machine.Id" class="d-inline"
+                                  data-confirm="Delete render machine &quot;@machine.Name&quot;?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

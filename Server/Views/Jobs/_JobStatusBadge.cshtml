@@ -1,0 +1,14 @@
+@model Server.Data.Entities.JobStatus
+@{
+    var css = Model switch
+    {
+        Server.Data.Entities.JobStatus.Completed => "text-bg-success",
+        Server.Data.Entities.JobStatus.Rendering => "text-bg-primary",
+        Server.Data.Entities.JobStatus.Ready => "text-bg-secondary",
+        Server.Data.Entities.JobStatus.Uploaded => "text-bg-info",
+        Server.Data.Entities.JobStatus.Analyzing => "text-bg-info",
+        Server.Data.Entities.JobStatus.Failed => "text-bg-danger",
+        _ => "text-bg-warning",
+    };
+}
+<span class="badge @css">@Model</span>

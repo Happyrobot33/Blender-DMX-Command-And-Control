@@ -1,0 +1,24 @@
+@{
+    ViewData["Title"] = "Add user";
+}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Users</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Add</li>
+    </ol>
+</nav>
+<h1 class="h3">Add user</h1>
+@if (ViewData["Error"] is string error)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
+<form method="post" asp-action="Create" class="col-md-6">
+    <div class="mb-3">
+        <label for="username" class="form-label">Username</label>
+        <input id="username" name="username" class="form-control" value="@ViewData["Username"]" required
+               minlength="3" maxlength="64" pattern="[A-Za-z0-9._\-]+" autocomplete="off" />
+        <div class="form-text">3-64 characters: letters, digits, '.', '_' or '-'.</div>
+    </div>
+    <partial name="_PasswordFields" />
+    <button type="submit" class="btn btn-primary">Create user</button>
+</form>

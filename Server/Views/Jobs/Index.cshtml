@@ -1,0 +1,65 @@
+@model IReadOnlyList<Server.Data.Entities.Job>
+@{
+    ViewData["Title"] = "Jobs";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Jobs</h1>
+    <a class="btn btn-primary" asp-action="Create">Upload Blender project</a>
+</div>
+
+<partial name="_FlashMessages" />
+
+@if (Model.Count == 0)
+{
+    <p class="text-muted">No jobs yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Main .blend</th>
+                    <th>Status</th>
+                    <th>Frames</th>
+                    <th class="text-end">Tasks</th>
+                    <th>Progress</th>
+                    <th class="text-end">Files</th>
+                    <th class="text-end">Size</th>
+                    <th>Created</th>
+                    <th>Job ID</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var job in Model)
+                {
+                    <tr>
+                        <td><a asp-action="Details" asp-route-id="@job.Id">@job.Name</a></td>
+                        <td><code>@job.MainBlendFile</code></td>
+                        <td>
+                            <partial name="_JobStatusBadge" model="job.Status" />
+                            @if (job.VideoStatus != Server.Data.Entities.VideoStatus.None)
+                            {
+                                <div class="small text-muted">video: @job.VideoStatus.ToString().ToLowerInvariant()@(job.VideoStatus == Server.Data.Entities.VideoStatus.Encoding ? $" {job.VideoProgressPercent:0}%" : "")</div>
+                            }
+                        </td>
+                        <td>@(job.FrameStart is null ? "-" : $"{job.FrameStart}-{job.FrameEnd}")</td>
+                        <td class="text-end">@job.Tasks.Count(t => t.Status == Server.Data.Entities.JobTaskStatus.Completed)/@job.Tasks.Count</td>
+                        <td>
+                            @if (job.Tasks.Count > 0) { <partial name="_ProgressBar" model="job.ProgressPercent" /> } else { <span class="text-muted">-</span> }
+                            @if (job.RenderTimeRemaining is TimeSpan listRemaining) { <div class="small text-muted">@Server.Jobs.RemainingTime.Describe(listRemaining)</div> }
+                        </td>
+                        <td class="text-end">@job.FileCount.ToString("N0")</td>
+                        <td class="text-end">@(job.TotalBytes.Bytes().Humanize("0.##"))</td>
+                        <td><local-time value="job.CreatedAtUtc" /></td>
+                        <td><code>@job.Id</code></td>
+                        <td class="text-end"><partial name="_DeleteJobForm" model="job" view-data='new ViewDataDictionary(ViewData) { ["Small"] = true }' /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
