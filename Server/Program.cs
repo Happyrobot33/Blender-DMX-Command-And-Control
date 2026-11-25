@@ -64,6 +64,10 @@ builder.Services.AddSingleton<Server.Jobs.Video.FfmpegEncoder>();
 builder.Services.AddSingleton<Server.Jobs.Video.VideoEncodingQueue>();
 builder.Services.AddHostedService<Server.Jobs.Video.VideoEncodingWorker>();
 
+// Background .blend analysis after upload (frame range, frame rate, sub tasks).
+builder.Services.AddSingleton<Server.Jobs.Analysis.JobAnalysisQueue>();
+builder.Services.AddHostedService<Server.Jobs.Analysis.JobAnalysisWorker>();
+
 // Authentication: users sign in to the web UI with a cookie; render machines use bearer API tokens.
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<UserService>();

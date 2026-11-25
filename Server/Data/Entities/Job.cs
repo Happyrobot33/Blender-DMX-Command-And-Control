@@ -88,6 +88,9 @@ public class Job
     [Column("scene_name")]
     public string? SceneName { get; set; }
 
+    [Column("requested_task_count")]
+    public int RequestedTaskCount { get; set; } = Server.Jobs.Analysis.JobTaskPlanner.DefaultSubTaskCount;
+
     [Column("frame_start")]
     public int? FrameStart { get; set; }
 
@@ -142,7 +145,7 @@ public class Job
     public DateTime? RenderedAtUtc { get; set; }
 
     [NotMapped]
-    public bool IsInProgress => Status is JobStatus.Uploading or JobStatus.Analyzing;
+    public bool IsInProgress => Status is JobStatus.Uploading or JobStatus.Uploaded or JobStatus.Analyzing;
 
     // Job progress is derived from its tasks at query time (requires Tasks to be loaded).
 

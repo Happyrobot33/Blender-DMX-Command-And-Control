@@ -14,7 +14,7 @@ public class JobUploadException(string message) : Exception(message);
 public class JobUploadService(
     AppDbContext db,
     JobPaths paths,
-    BlendFileScanner scanner,
+    JobAnalysisQueue analysisQueue,
     IOptions<JobStorageOptions> storageOptions,
     ILogger<JobUploadService> logger)
 {
@@ -91,13 +91,14 @@ public class JobUploadService(
                 throw new JobUploadException($"The selected .blend file '{job.MainBlendFile}' was not part of the upload.");
             job.MainBlendFile = uploadedBlendPath; // use the exact casing that is on disk
 
-            job.Status = JobStatus.Analyzing;
+            // The .blend scan runs in the background (JobAnalysisWorker), not in this request.
+            job.Status = JobStatus.Uploaded;
+            job.RequestedTaskCount = taskCount;
             job.CompletedAtUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Job {JobId} uploaded: {FileCount} files, {TotalBytes} bytes; scanning {BlendFile}",
+            analysisQueue.Enqueue(job.Id);
+            logger.LogInformation("Job {JobId} uploaded: {FileCount} files, {TotalBytes} bytes; queued for analysis of {BlendFile}",
                 job.Id, job.FileCount, job.TotalBytes, job.MainBlendFile);
-
-            await AnalyzeAsync(job, taskCount, cancellationToken);
             return job;
         }
         catch (Exception ex) when (job is not null)
@@ -105,36 +106,6 @@ public class JobUploadService(
             await MarkFailedAsync(job.Id, ex);
             throw;
         }
-    }
-
-    private async Task AnalyzeAsync(Job job, int taskCount, CancellationToken cancellationToken)
-    {
-        var blendPath = JobPaths.ResolveUnder(paths.SourceDirectory(job.Id), job.MainBlendFile);
-        var range = await scanner.ScanFrameRangeAsync(blendPath, cancellationToken);
-        var plan = JobTaskPlanner.Plan(range, taskCount);
-
-        var now = DateTime.UtcNow;
-        job.Tasks.AddRange(plan.Select(p => new JobTask
-        {
-            TaskIndex = p.TaskIndex,
-            FrameStart = p.FrameStart,
-            FrameEnd = p.FrameEnd,
-            FrameCount = p.FrameCount,
-            Status = JobTaskStatus.Pending,
-            CreatedAtUtc = now,
-        }));
-        job.SceneName = Truncate(range.SceneName, 255);
-        job.FrameStart = range.Start;
-        job.FrameEnd = range.End;
-        job.FrameRate = range.FrameRate;
-        job.AnalyzedAtUtc = now;
-        job.Status = JobStatus.Ready;
-
-        // One SaveChanges: the tasks and the Ready status are committed together.
-        await db.SaveChangesAsync(cancellationToken);
-
-        logger.LogInformation("Job {JobId} ready: scene {Scene}, frames {Start}-{End} ({Frames} frames) in {Tasks} sub tasks",
-            job.Id, range.SceneName, range.Start, range.End, range.FrameCount, plan.Count);
     }
 
     private async Task<Job> CreateJobAsync(string? name, string? sourceFolderName, string? mainBlendFile,

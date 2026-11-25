@@ -2,7 +2,15 @@
 @{
     ViewData["Title"] = Model.Name;
     var sourceFiles = (IReadOnlyList<Server.Jobs.JobSourceFile>)ViewData["SourceFiles"]!;
-    var inProgress = Model.Status is Server.Data.Entities.JobStatus.Uploading or Server.Data.Entities.JobStatus.Analyzing;
+    var inProgress = Model.IsInProgress;
+    // What to show for scene / frame range until the .blend has been scanned.
+    var pendingText = Model.Status switch
+    {
+        Server.Data.Entities.JobStatus.Uploading => "Uploading...",
+        Server.Data.Entities.JobStatus.Uploaded => "Waiting to be analyzed...",
+        Server.Data.Entities.JobStatus.Analyzing => "Analyzing the .blend file...",
+        _ => "-",
+    };
     var frameCount = Model.FrameStart is int fs && Model.FrameEnd is int fe
         ? new Server.Jobs.Analysis.FrameRange(Model.SceneName ?? "", fs, fe).FrameCount
         : (int?)null;
@@ -47,7 +55,7 @@
     <dt class="col-sm-3">Files</dt>
     <dd class="col-sm-9">@Model.FileCount.ToString("N0") (@(Model.TotalBytes.Bytes().Humanize("0.##")))</dd>
     <dt class="col-sm-3">Scene</dt>
-    <dd class="col-sm-9">@(Model.SceneName ?? (inProgress ? "Analyzing…" : "-"))</dd>
+    <dd class="col-sm-9">@(Model.SceneName ?? pendingText)</dd>
     <dt class="col-sm-3">Frame range</dt>
     <dd class="col-sm-9">
         @if (frameCount is not null)
@@ -57,7 +65,7 @@
         }
         else
         {
-            @(inProgress ? "Analyzing…" : "-")
+            @pendingText
         }
     </dd>
     @if (Model.Tasks.Count > 0)

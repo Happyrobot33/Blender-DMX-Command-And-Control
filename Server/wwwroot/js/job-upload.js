@@ -110,7 +110,7 @@ import { filesize } from '../lib/filesize/filesize.js';
             if (!e.lengthComputable) return;
             const pct = Math.floor((e.loaded / e.total) * 100);
             progressBar.style.width = `${pct}%`;
-            progressBar.textContent = pct === 100 ? 'Reading frame range from .blend…' : `${pct}%`;
+            progressBar.textContent = pct === 100 ? 'Finishing upload…' : `${pct}%`;
         });
 
         xhr.addEventListener('load', () => {

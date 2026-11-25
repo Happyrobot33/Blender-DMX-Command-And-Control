@@ -13,7 +13,7 @@ public static class JobRecovery
         var paths = scope.ServiceProvider.GetRequiredService<JobPaths>();
 
         var interrupted = await db.Jobs
-            .Where(j => j.Status == JobStatus.Uploading || j.Status == JobStatus.Analyzing)
+            .Where(j => j.Status == JobStatus.Uploading) // Uploaded/Analyzing are requeued by JobAnalysisWorker
             .Select(j => j.Id)
             .ToListAsync();
         if (interrupted.Count == 0)
